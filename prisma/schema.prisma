@@ -1,0 +1,93 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String     @id @default(cuid())
+  clerkId   String     @unique
+  name      String
+  email     String
+  avatar    String?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  clients   Client[]
+  feedback  Feedback[]
+}
+
+model Feedback {
+  id        String   @id @default(cuid())
+  clientId  String
+  coachId   String
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  coach     User     @relation(fields: [coachId], references: [id], onDelete: Cascade)
+}
+
+model Client {
+  id            String       @id @default(cuid())
+  coachId       String
+  name          String
+  goal          String
+  currentWeight Float?
+  goalWeight    Float?
+  email         String?
+  compliance    Int          @default(0)
+  profileImage  String?
+  token         String?      @unique
+  memberSince   DateTime     @default(now())
+  lastCheckIn   DateTime?
+  lastRemindedAt DateTime?
+  status        ClientStatus @default(active)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  checkIns      CheckIn[]
+  coach         User         @relation(fields: [coachId], references: [id], onDelete: Cascade)
+  feedback      Feedback[]
+}
+
+model CheckIn {
+  id                 String   @id @default(cuid())
+  clientId           String
+  week               String
+  date               DateTime
+  weight             Float?
+  energy             Int
+  mood               Mood
+  workoutCompletion  Int
+  nutritionAdherence Int
+  waist              Float?
+  chest              Float?
+  arms               Float?
+  notes              String?
+  coachFeedback      String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  client             Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+}
+
+enum ClientStatus {
+  active
+  inactive
+  paused
+}
+
+enum Mood {
+  happy
+  neutral
+  tired
+  stressed
+  motivated
+}
+
+enum ActivityType {
+  checkin
+  photos
+  missed
+}
