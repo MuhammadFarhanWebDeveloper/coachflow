@@ -68,9 +68,9 @@ type ClientData = {
   feedback: FeedbackData[]
 }
 
-type Tab = "overview" | "progress" | "checkins" | "notes"
+type Tab = "overview" | "progress" | "checkins" | "feedback"
 
-const tabs: Tab[] = ["overview", "progress", "checkins", "notes"]
+const tabs: Tab[] = ["overview", "progress", "checkins", "feedback"]
 
 const tooltipStyle = {
   contentStyle: {
@@ -233,8 +233,8 @@ export function ClientProfile({ client }: { client: ClientData }) {
             <ProgressTab checkIns={client.checkIns} measurementData={measurementData} />
           )}
           {activeTab === "checkins" && <CheckInsTab checkIns={client.checkIns} />}
-          {activeTab === "notes" && (
-            <NotesTab
+          {activeTab === "feedback" && (
+            <FeedbackTab
               clientId={client.id}
               feedback={feedback}
               onNewFeedback={(f) => setFeedback((prev) => [f, ...prev])}
@@ -400,7 +400,7 @@ function CheckInsTab({ checkIns }: { checkIns: CheckInData[] }) {
   )
 }
 
-function NotesTab({
+function FeedbackTab({
   clientId,
   feedback,
   onNewFeedback,

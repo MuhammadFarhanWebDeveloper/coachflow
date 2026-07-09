@@ -135,7 +135,7 @@ export async function addFeedback(
 
     const client = await prisma.client.findUnique({
       where: { id: clientId },
-      select: { id: true, coachId: true },
+      select: { id: true, coachId: true, email: true, name: true },
     })
     if (!client || client.coachId !== user.id) {
       return { success: false, error: "Client not found" }
@@ -144,6 +144,30 @@ export async function addFeedback(
     const feedback = await prisma.feedback.create({
       data: { clientId, coachId: user.id, content: content.trim() },
     })
+
+    if (client.email) {
+      await sendEmail({
+        to: client.email,
+        subject: `${user.name || "Your coach"} left you feedback on CoachFlow`,
+        html: `
+          <div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto;padding:32px">
+            <div style="text-align:center;margin-bottom:24px">
+              <span style="font-size:32px;font-weight:700;color:#10b981">CoachFlow</span>
+            </div>
+            <h1 style="font-size:22px;font-weight:600;color:#111;margin-bottom:8px">Hi ${client.name},</h1>
+            <p style="font-size:15px;line-height:1.6;color:#374151;margin-bottom:16px">
+              Your coach <strong>${user.name || "Your coach"}</strong> has left you some feedback:
+            </p>
+            <div style="background:#f3f4f6;border-radius:8px;padding:16px;margin-bottom:24px">
+              <p style="font-size:15px;line-height:1.6;color:#374151;margin:0">${feedback.content}</p>
+            </div>
+            <p style="font-size:13px;color:#9ca3af;text-align:center">
+              Keep up the great work on your journey!
+            </p>
+          </div>
+        `.trim(),
+      })
+    }
 
     revalidatePath(`/clients/${clientId}`)
     return {
