@@ -50,6 +50,75 @@ export async function addClient(data: {
   }
 }
 
+export async function updateClient(
+  clientId: string,
+  data: {
+    name: string
+    email?: string | null
+    goal: string
+    currentWeight?: number | null
+    goalWeight?: number | null
+  }
+): Promise<ActionResult<undefined>> {
+  try {
+    const { userId } = await auth()
+    if (!userId) return { success: false, error: "Unauthorized" }
+
+    if (!data.name?.trim() || !data.goal?.trim()) {
+      return { success: false, error: "Name and goal are required" }
+    }
+
+    const user = await prisma.user.findUnique({ where: { clerkId: userId } })
+    if (!user) return { success: false, error: "User not found" }
+
+    const client = await prisma.client.findFirst({
+      where: { id: clientId, coachId: user.id },
+    })
+    if (!client) return { success: false, error: "Client not found" }
+
+    await prisma.client.update({
+      where: { id: clientId },
+      data: {
+        name: data.name.trim(),
+        email: data.email?.trim() || null,
+        goal: data.goal.trim(),
+        currentWeight: data.currentWeight ?? null,
+        goalWeight: data.goalWeight ?? null,
+      },
+    })
+
+    revalidatePath("/clients")
+    revalidatePath(`/clients/${clientId}`)
+    return { success: true, data: undefined }
+  } catch {
+    return { success: false, error: "Failed to update client" }
+  }
+}
+
+export async function deleteClient(
+  clientId: string
+): Promise<ActionResult<undefined>> {
+  try {
+    const { userId } = await auth()
+    if (!userId) return { success: false, error: "Unauthorized" }
+
+    const user = await prisma.user.findUnique({ where: { clerkId: userId } })
+    if (!user) return { success: false, error: "User not found" }
+
+    const client = await prisma.client.findFirst({
+      where: { id: clientId, coachId: user.id },
+    })
+    if (!client) return { success: false, error: "Client not found" }
+
+    await prisma.client.delete({ where: { id: clientId } })
+
+    revalidatePath("/clients")
+    return { success: true, data: undefined }
+  } catch {
+    return { success: false, error: "Failed to delete client" }
+  }
+}
+
 export async function addFeedback(
   clientId: string,
   content: string

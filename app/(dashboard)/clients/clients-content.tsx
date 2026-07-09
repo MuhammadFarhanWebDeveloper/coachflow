@@ -3,12 +3,24 @@
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Plus, Eye, ExternalLink, Users } from "lucide-react"
+import { Plus, Eye, ExternalLink, Users, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { EmptyState } from "@/components/empty-state"
 import { Pagination } from "@/components/pagination"
 import { AddClientDialog } from "@/components/add-client-dialog"
+import { EditClientDialog } from "@/components/edit-client-dialog"
+import {
+  AlertDialog,
+  AlertDialogTrigger,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog"
 import {
   Sheet,
   SheetContent,
@@ -17,6 +29,7 @@ import {
   SheetDescription,
   SheetFooter,
 } from "@/components/ui/sheet"
+import { deleteClient } from "@/lib/actions"
 
 type Filter = "all" | "active" | "paused" | "inactive"
 
@@ -30,6 +43,7 @@ const filters: { label: string; value: Filter }[] = [
 type ClientRow = {
   id: string
   name: string
+  email: string | null
   goal: string
   currentWeight: number | null
   goalWeight: number | null
@@ -205,6 +219,7 @@ function TH({ children, className }: { children: React.ReactNode; className?: st
 }
 
 function ClientRow({ client, onSelect }: { client: ClientRow; onSelect: () => void }) {
+  const router = useRouter()
   const badge = getStatusBadge(client.status, client.compliance, !!client.lastCheckInDate)
   return (
     <tr
@@ -251,16 +266,52 @@ function ClientRow({ client, onSelect }: { client: ClientRow; onSelect: () => vo
         </div>
       </td>
       <td className="px-6 py-4">
-        <Button
-          variant="ghost"
-          size="icon"
-          asChild
-          onClick={(e) => e.stopPropagation()}
-        >
-          <Link href={`/clients/${client.id}`}>
-            <Eye className="size-4" />
-          </Link>
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            asChild
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Link href={`/clients/${client.id}`}>
+              <Eye className="size-4" />
+            </Link>
+          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Trash2 className="size-4 text-destructive" />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete Client</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to delete {client.name}? This will
+                  permanently remove the client and all their check-in data.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel onClick={(e) => e.stopPropagation()}>
+                  Cancel
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={async (e) => {
+                    e.stopPropagation()
+                    await deleteClient(client.id)
+                    router.refresh()
+                  }}
+                >
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
       </td>
     </tr>
   )
@@ -268,6 +319,8 @@ function ClientRow({ client, onSelect }: { client: ClientRow; onSelect: () => vo
 
 function ClientSheetContent({ client }: { client: ClientRow }) {
   const badge = getStatusBadge(client.status, client.compliance, !!client.lastCheckInDate)
+  const [deleting, setDeleting] = useState(false)
+  const router = useRouter()
   return (
     <>
       <SheetHeader className="pb-0">
@@ -325,6 +378,13 @@ function ClientSheetContent({ client }: { client: ClientRow }) {
         </div>
 
         <div>
+          <p className="text-xs text-muted-foreground uppercase font-semibold tracking-wider mb-3">Email</p>
+          <div className="bg-muted rounded-lg p-3">
+            <p className="text-sm text-foreground">{client.email ?? "No email on file"}</p>
+          </div>
+        </div>
+
+        <div>
           <p className="text-xs text-muted-foreground uppercase font-semibold tracking-wider mb-3">Last Check-in</p>
           <div className="bg-muted rounded-lg p-3">
             {client.lastCheckInDate ? (
@@ -339,7 +399,40 @@ function ClientSheetContent({ client }: { client: ClientRow }) {
         </div>
       </div>
 
-      <SheetFooter>
+      <SheetFooter className="flex-col gap-2">
+        <div className="flex gap-2 w-full">
+          <EditClientDialog client={client} onSuccess={() => router.refresh()} />
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" size="icon" className="text-destructive">
+                <Trash2 className="size-4" />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete Client</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to delete {client.name}? This will
+                  permanently remove the client and all their check-in data.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  disabled={deleting}
+                  onClick={async () => {
+                    setDeleting(true)
+                    await deleteClient(client.id)
+                    setDeleting(false)
+                    router.refresh()
+                  }}
+                >
+                  {deleting ? "Deleting..." : "Delete"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
         <Button className="w-full" asChild>
           <Link href={`/clients/${client.id}`}>
             <ExternalLink className="size-4" />

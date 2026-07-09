@@ -22,6 +22,7 @@ export default async function ClientProfilePage({
   const data = {
     id: client.id,
     name: client.name,
+    email: client.email,
     goal: client.goal,
     currentWeight: client.currentWeight,
     goalWeight: client.goalWeight,

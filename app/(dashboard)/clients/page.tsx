@@ -20,6 +20,7 @@ export default async function ClientsPage(props: {
     id: c.id,
     name: c.name,
     goal: c.goal,
+    email: c.email,
     currentWeight: c.currentWeight,
     goalWeight: c.goalWeight,
     compliance: c.compliance,

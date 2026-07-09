@@ -11,11 +11,24 @@ import {
   Tooltip as RechartsTooltip,
   ResponsiveContainer,
 } from "recharts"
-import { ArrowLeft, MessageSquare, Plus, Send, ClipboardList, LineChart as LineChartIcon, MessageCircle, Share2 } from "lucide-react"
+import { ArrowLeft, MessageSquare, Plus, Send, ClipboardList, LineChart as LineChartIcon, MessageCircle, Share2, Trash2 } from "lucide-react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { EmptyState } from "@/components/empty-state"
-import { addFeedback, generateCheckInToken } from "@/lib/actions"
+import { EditClientDialog } from "@/components/edit-client-dialog"
+import {
+  AlertDialog,
+  AlertDialogTrigger,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog"
+import { addFeedback, generateCheckInToken, deleteClient } from "@/lib/actions"
 
 type CheckInData = {
   id: string
@@ -43,6 +56,7 @@ export type FeedbackData = {
 type ClientData = {
   id: string
   name: string
+  email: string | null
   goal: string
   currentWeight: number | null
   goalWeight: number | null
@@ -92,9 +106,11 @@ function timeAgo(dateStr: string) {
 }
 
 export function ClientProfile({ client }: { client: ClientData }) {
+  const router = useRouter()
   const [activeTab, setActiveTab] = useState<Tab>("overview")
   const [feedback, setFeedback] = useState<FeedbackData[]>(client.feedback)
   const [shareState, setShareState] = useState<"idle" | "loading" | "copied">("idle")
+  const [deleting, setDeleting] = useState(false)
 
   async function handleShare() {
     setShareState("loading")
@@ -124,7 +140,38 @@ export function ClientProfile({ client }: { client: ClientData }) {
             <span className="hidden sm:inline">Back to Clients</span>
           </Link>
         </Button>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          <EditClientDialog client={client} onSuccess={() => router.refresh()} />
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" size="icon" className="text-destructive">
+                <Trash2 className="size-4" />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete Client</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to delete {client.name}? This will
+                  permanently remove the client and all their check-in data.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  disabled={deleting}
+                  onClick={async () => {
+                    setDeleting(true)
+                    await deleteClient(client.id)
+                    setDeleting(false)
+                    router.push("/clients")
+                  }}
+                >
+                  {deleting ? "Deleting..." : "Delete"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
           <Button variant="outline" size="sm" onClick={handleShare} disabled={shareState === "loading"}>
             <Share2 className="size-4" />
             {shareState === "copied" ? "Copied!" : shareState === "loading" ? "Generating..." : "Share Check-in Link"}
