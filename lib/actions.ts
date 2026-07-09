@@ -4,10 +4,7 @@ import { auth } from "@clerk/nextjs/server"
 import prisma from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { randomUUID } from "crypto"
-import { Resend } from "resend"
-import { CheckInReminderEmail } from "@/components/emails/check-in-reminder"
-
-const resend = new Resend(process.env.RESEND_API_KEY)
+import { sendEmail } from "@/lib/email"
 
 type ActionResult<T = undefined> =
   | { success: true; data: T }
@@ -276,36 +273,65 @@ export async function sendReminder(
       return { success: false, error: "Already reminded within the last 24 hours" }
     }
 
+    if (!client.email) {
+      return { success: false, error: "Client has no email configured" }
+    }
+
+    let token = client.token
+    if (!token) {
+      token = randomUUID()
+      await prisma.client.update({
+        where: { id: clientId },
+        data: { token },
+      })
+    }
+
+    const daysOverdue = client.lastCheckIn
+      ? Math.floor((Date.now() - client.lastCheckIn.getTime()) / (24 * 60 * 60 * 1000))
+      : 0
+
+    const checkInUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/check-in/${token}`
+
+    const daysLabel = daysOverdue > 0
+      ? ` It's been ${daysOverdue} day${daysOverdue > 1 ? "s" : ""} since your last check-in.`
+      : ""
+
+    const result = await sendEmail({
+      to: client.email,
+      subject: `Reminder from ${client.coach.name} — Submit your check-in`,
+      html: `
+        <div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto;padding:32px">
+          <div style="text-align:center;margin-bottom:24px">
+            <span style="font-size:32px;font-weight:700;color:#10b981">CoachFlow</span>
+          </div>
+          <h1 style="font-size:22px;font-weight:600;color:#111;margin-bottom:8px">Hi ${client.name},</h1>
+          <p style="font-size:15px;line-height:1.6;color:#374151;margin-bottom:16px">
+            Your coach <strong>${client.coach.name || "Your coach"}</strong> wanted to check in on your progress.${daysLabel}
+          </p>
+          ${client.goal ? `<p style="font-size:15px;line-height:1.6;color:#374151;margin-bottom:16px">Remember your goal: <strong>${client.goal}</strong></p>` : ""}
+          <p style="font-size:15px;line-height:1.6;color:#374151;margin-bottom:24px">
+            Take a few minutes to submit your weekly check-in so your coach can track your progress and adjust your plan.
+          </p>
+          <div style="text-align:center;margin-bottom:24px">
+            <a href="${checkInUrl}" style="display:inline-block;padding:12px 32px;font-size:15px;font-weight:600;color:#fff;background-color:#10b981;border-radius:8px;text-decoration:none">
+              Submit Check-in
+            </a>
+          </div>
+          <p style="font-size:13px;color:#9ca3af;text-align:center">If the button above doesn't work, copy this URL into your browser:</p>
+          <p style="font-size:13px;color:#6b7280;text-align:center;word-break:break-all">${checkInUrl}</p>
+        </div>
+      `.trim(),
+    })
+
+    if (!result.success) {
+      return { success: false, error: result.error }
+    }
+
     const updated = await prisma.client.update({
       where: { id: clientId },
       data: { lastRemindedAt: new Date() },
       select: { lastRemindedAt: true },
     })
-
-    if (client.email && client.token) {
-      const daysOverdue = client.lastCheckIn
-        ? Math.floor((Date.now() - client.lastCheckIn.getTime()) / (24 * 60 * 60 * 1000))
-        : 0
-
-      const checkInUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/check-in/${client.token}`
-
-      const { error } = await resend.emails.send({
-        from: "CoachFlow <coachflow@farhantechsolutions.com>",
-        to: client.email,
-        subject: `Reminder from ${client.coach.name} — Submit your check-in`,
-        react: CheckInReminderEmail({
-          clientName: client.name,
-          coachName: client.coach.name || "Your coach",
-          goal: client.goal,
-          daysOverdue,
-          checkInUrl,
-        }),
-      })
-
-      if (error) {
-        console.error("Resend error:", error)
-      }
-    }
 
     revalidatePath("/dashboard")
     return { success: true, data: { remindedAt: updated.lastRemindedAt!.toISOString() } }
